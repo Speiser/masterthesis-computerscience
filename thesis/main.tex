@@ -1,0 +1,926 @@
+\documentclass{article}
+\usepackage{fontspec}
+\usepackage{listings} % Code blocks
+\usepackage{color} % Background color for code blocks
+\usepackage[utf8]{inputenc} 
+\usepackage[english]{babel}
+\usepackage{acronym} % Abbreviations
+\usepackage{array} % Monospace font in table
+\usepackage{graphics} % Scale down table
+\usepackage{graphicx} % needed for rotation in table
+
+% rotation in table
+\newcommand{\mcrot}[4]{\multicolumn{#1}{#2}{\rlap{\rotatebox{#3}{#4}~}}} 
+
+\setmonofont{Latin Modern Mono}
+\definecolor{code_listing_background}{rgb}{0.99,0.99,0.99}
+
+\title{
+Masterthesis \\
+\bigskip \textbf{Automatic Detection of Architectural Anti Patterns in Microservices} \bigskip}
+
+\author{Bernhard Speiser, BSc \\\\{Supervisor: DI Dr. Gottfried Bauer}\\\\{University of Applied Sciences Wiener Neustadt}}
+\date{28.04.2020}
+
+\setcounter{tocdepth}{2}
+
+\begin{document}
+
+\clearpage\maketitle
+\thispagestyle{empty}
+\pagebreak
+\thispagestyle{empty}
+\vspace*{\fill}
+\begin{abstract}
+It is a common trend for organizations to migrate their software systems from a monolithic architecture to a microservice architecture, which usually starts without any experience of the microservice architecture.
+As with any other technology, microservice architectures have various patterns and anti patterns.  
+Furthermore, it is hard to keep track of the regularly occurring decay of a software architecture.
+Existing tools often require an immense configuration effort in advance and are not specialized in detecting a taxonomy of microservice specific anti patterns.
+Therefore a prototype is implemented to automatically detect a specified set of microservice related anti patterns in C\# projects.
+In addition, a list of open source projects, implementing the microservice architecture, is considered and compiled.
+Furthermore, within the context of a case study, this list of projects is then analyzed by the built prototype.
+Based on the outcome of the analysis one open source project is proposed as an advantageous guideline for the implementation of a microservice project.
+Additionally, as a key result the \textit{API Versioning}, \textit{Hardcoded Endpoints}, \textit{Lack of Monitoring} and \textit{Shared Libraries} anti patterns were identified as most frequently occurring pitfalls in microservice projects in particular.
+\end{abstract}
+\vspace*{\fill}
+\pagebreak
+
+\lstset{
+	captionpos=b,
+    backgroundcolor=\color{code_listing_background},
+	showspaces=false,
+	showtabs=false,
+	breaklines=true,
+	showstringspaces=false,
+	breakatwhitespace=false,
+	escapeinside={(*@}{@*)},
+	basicstyle=\ttfamily\small,
+}
+
+\thispagestyle{empty}
+\tableofcontents 
+\pagebreak
+
+\section*{List of Abbreviations}
+\begin{acronym}[Bash]
+ \acro{CNV}{Calculated Number of Violations}
+ \acro{ESB}{Enterprise Service Bus}
+ \acro{LOC}{Lines of Code}
+ \acro{RNV}{Relative Number of Violations}
+ \acro{RQ1}{First Research Question}
+ \acro{RQ2}{Second Research Question}
+ \acro{SOA}{Service Oriented Architecture}
+ \acro{TNV}{Total Number of Violations}
+\end{acronym}
+
+\pagebreak
+
+\listoftables
+
+\pagebreak
+
+\section{Introduction}
+\subsection{Microservices}
+Over the last decade, a new trend in software architecture emerged: \textit{Microservices}. With microservices the increasing complexity of software systems can be managed by decomposing large systems into a set of independent (and isolated) services \cite{dragoni_microservices_2017}. \textit{Dragoni et al.} provides a definition: \textit{"A microservice is a cohesive, independent process interacting via messages"} \cite{dragoni_microservices_2017}. Microservices provide benefits in terms of maintainability, scalability, reusability and independence with regards to development and deployment \cite{dragoni_microservices_2017, chen_monolith_2017, al-debagy_comparative_2019}. The key characteristics of microservices are flexibility, modularity and evolution \cite{dragoni_microservices_2017}. Flexibility is the possibility to keep up with a changing business environment while supporting modifications that are necessary to stay competitive. A microservice architecture is composed of multiple isolated components (modularity) instead of having a single component (commonly known as monolith). A microservice architecture should stay maintainable while evolving (evolution) \cite{dragoni_microservices_2017}. Each microservice is dedicated to a single business process/capability \cite{gadea_reference_2016}. Apart from this, microservices can be developed utilizing different technology stacks, since they communicate by using messages. Microservices scale independently from other services and can be deployed on a platform and hardware that best suits their needs \cite{taibi_architectural_2018}.
+
+\subsection{Architectural Smells and Anti Patterns}
+According to \textit{Garcia et al.} architectural anti patterns are negatively affecting any system quality, while architectural smells will affect lifecycle properties, such as understandability, testability, extensibility, and reusability \cite{garcia_toward_2009}, to a higher extend. Thus, the general definition of anti patterns allows architectural smells to be classified as anti patterns. Architectural anti patterns (and therefore smells) are a commonly (although not always intentionally) used set of architectural design decisions that negatively impact system properties \cite{garcia_toward_2009}. Furthermore, they represent common “solutions” that are not necessarily faulty or errant, but still negatively impact software quality \cite{garcia_toward_2009, garcia_identifying_2009}, maintenance and evolution costs \cite{macia_relevance_2012}. This thesis will use the term \textit{anti patterns} to refer to anti patterns and smells. Architectural anti patterns, as outlined by \textit{Ernst et al.}, are one of the greatest sources of technical debt \cite{ernst_measure_2015, azadi_architectural_2019}, also regarded to as \textit{architectural debt} \cite{yuanfang_cai_detecting_2017}. Thus, it is important to identify, investigate and remove them through different refactoring steps \cite{azadi_architectural_2019}.
+
+\subsection{Motivation and Problem Statement}
+It is a common trend for organizations to migrate their systems from a monolithic architecture to a microservice architecture \cite{taibi_monolithic_2019, taibi_processes_2017, krause_microservice_2020}. This process has various motivations, such as, being an enabler for DevOps \cite{balalaie_microservices_2016, taibi_continuous_2018, pahl_architectural_2018} and reduced development times \cite{gadea_reference_2016} resulting in an increase in productivity.
+\newline
+
+As with any other (trending) technology, microservice architectures show various patterns \cite{taibi_architectural_2018} and anti patterns.
+Common microservice related anti patterns have been identified by \textit{Taibi et al.} \cite{taibi_definition_2018, taibi_microservices_2020} and \textit{Neri et al.} \cite{neri_design_2019}.
+A recent analysis \cite{bandeira_we_2019} of microservice related discussions on StackOverflow, a Q\&A website, has shown, that \textit{best practices} are a frequently discussed topic (technical: 14.10\%, conceptual: 26.19\%) among (the majority of) developers. It is therefore concluded that there are misconceptions among developers regarding best practices (and as a consequence, anti patterns) of microservices.
+One factor to explain this, could be, that the migration (or even the initial implementation) of projects, starts without any or insufficient experience with microservices  \cite{taibi_monolithic_2019, lenarduzzi_does_2019}, respectively. \newline
+
+Besides that, it is common knowledge, that it is hard to keep track of the evolution of an architecture. Furthermore, \textit{the study of software architecture has recognized architectural decay as a regularly occurring phenomenon in long-lived systems} \cite{le_empirical_2015}. It would be a benefit, for academics and organisations, if there is a way of continuously verifying the architecture, for example, based on a taxonomy of anti patterns.
+Such a tool could explicitly tell the developer, when he or she makes an (obvious) mistake or violates a best practice.
+Tools, such as \textit{Sonargraph Architect}\footnote{https://www.hello2morrow.com/products/sonargraph/architect9 Accessed 17.12.2019}, are available for architecture verification, but they (usually) have an immense configuration effort upfront.
+Furthermore, it is quite a challenge, to introduce them late into a project, since, in the worst case, the architecture has to be reverse engineered.
+These efforts are a potential reason not to use these tools all together.
+
+\subsection{Objectives and Research Questions}
+The first objective of this work is to conceptualize and implement a prototype of a \textit{microservice architectural anti pattern analyzer} tool. 
+The second objective is to compile a list of open source microservice projects. This list will then be analyzed by an own prototype specifically designed and built. The built prototype\footnote{Publicly available at: https://github.com/speiser/masterthesis-computerscience} and the list of open source microservice projects can then also be used for further research by the research community. \newline
+
+\noindent Based on these objectives, the following research questions arise:
+\begin{itemize}
+    \item \textit{\textbf{RQ1}: Based on the results provided by the prototype, which open source project can be identified as an advantageous guideline for the implementation of a microservice project?}
+    \item \textit{\textbf{RQ2}: Which of the revealed and investigated anti patterns occur most frequently with respect to the list of specifically considered open source projects and therefore represent frequently occurring pitfalls?}
+\end{itemize}
+
+\section{Background and Theory}
+\subsection{Microservice Anti Patterns}
+This subsection lists commonly occurring architectural anti patterns regarding microservices which are identified by research literature.
+The listed anti patterns were identified by surveys of experienced practitioners, by \cite{taibi_definition_2018} and its subsequent survey \cite{taibi_microservices_2020}. The list is further supported by systematical literature reviews, such as \cite{neri_design_2019} and \cite{bogner_towards_2019}.
+
+\subsubsection{(Lack of) API Versioning}
+\noindent\textbf{Description:} Semantically versioning of APIs is necessary to ensure the independent deployment of microservices. It guarantees that not yet adapted microservices can still communicate with the newly deployed service, even after a breaking change was made. The lack of semantically versioning could result in bad requests (e.g.: in the case that the request contract was changed) or unknown response data is returned to the invoking microservice.\newline
+\noindent\textbf{Sources:} \cite{
+    taibi_definition_2018,
+    taibi_microservices_2020,
+    bogner_towards_2019,
+    zimmermann_interface_2017,
+    zimmermann_microservices_2017}
+
+\subsubsection{Cyclic Dependency}
+\noindent\textbf{Description:} Cyclic dependency is a common architectural anti pattern, even outside of the microservice landscape. A cyclic dependency, in the context of microservices, is a cyclic chain of calls between microservices, which makes it hard (to impossible) to reuse or maintain these services. It can be detected by following each "call chain". It can either be a direct call between services, e.g.: \textit{A calls B, B calls A} or transitive e.g.: \textit{A calls B, B calls C and C calls A}. \newline
+\noindent\textbf{Sources:} \cite{
+    taibi_definition_2018,
+    taibi_microservices_2020,
+    bogner_towards_2019}
+    
+\subsubsection{ESB Usage}
+\noindent\textbf{Description:} Enterprise services buses (ESB) \textit{were a dominant communication strategy} \cite{bandeira_we_2019} in Service Oriented Architectures (SOA). But in microservices ESBs \textit{may become a bottleneck both architecturally and organizationally} \cite{pautasso_microservices_2017} and can lead to centralization of business logic. Instead a lightweight message bus should be adopted.\newline
+\noindent\textbf{Sources:} \cite{
+    taibi_definition_2018,
+    taibi_microservices_2020,
+    neri_design_2019,
+    bandeira_we_2019}
+    
+\subsubsection{Hardcoded Endpoints}
+\noindent\textbf{Description:} Hardcoded Endpoints (such as an IP address or port) is an anti pattern since it does not allow to scale the invoked microservice (\textit{A}), since the invoking service (\textit{B}) only "knows" this (hardcoded) microservice location. Thus, no load balancer for microservices can be utilized. Furthermore, if the location of service \textit{A} is changed, service \textit{B} has to be reconfigured (or in worst case, rebuilt and redeployed). A common solution for this anti pattern is to implement a service discovery pattern, as described in  \cite{taibi_architectural_2018}.\newline
+\noindent\textbf{Sources:} \cite{
+    taibi_definition_2018,
+    taibi_microservices_2020,
+    neri_design_2019,
+    bogner_towards_2019}
+    
+\subsubsection{Lack of Monitoring}
+\noindent\textbf{Description:} A microservice should contain an endpoint for a "health check". The bare minimum would be to continuously check whether the service is still running or needs to be restarted. An extended health check could respond with the current load of the microservice, so that a load balancer could decide, whether it is necessary to start another instance of the service or not. Without a health check the microservice could be offline (or malfunctioning) and the developers would not notice it until someone checks it manually. \newline
+\noindent\textbf{Sources:} \cite{
+    taibi_microservices_2020}
+    
+\subsubsection{Megaservice}
+\noindent\textbf{Description:} A megaservice is a service that does a lot of things. From a structural point of view it can be regarded as a monolith. Thus, it comes with the same disadvantages/problems as a monolith. It is difficult to say at what point a microservice becomes a megaservice, as there is no "rule" that defines how big a microservice should be.
+There are few size metrics, such as \textit{Lines of Code (LOC)}, which \textit{is sometimes seen as controversial. Nonetheless, size metrics on their own are never sufficiently accurate. Moreover, it is often hard to define “acceptable” value ranges for these metrics} \cite{bogner_automatically_2017}.
+A different approach to detect a megaservice could be to check whether it implements multiple business processes or not. \newline 
+\noindent\textbf{Sources:} \cite{
+    taibi_microservices_2020,
+    bogner_towards_2019}
+    
+\subsubsection{No API-Gateway}
+\noindent\textbf{Description:} According to \cite{taibi_architectural_2018}, an API-Gateway is the entry point of the system that routes requests to the appropriate microservices. An API-Gateway usually implements shared logic like authentication and ratelimiters. With an API-Gateway a client does never directly communicate with a microservice. \newline
+\noindent\textbf{Sources:} \cite{
+    taibi_definition_2018,
+    taibi_microservices_2020,
+    neri_design_2019}
+    
+\subsubsection{Shared Libraries}
+\noindent\textbf{Description:} Libraries shared across multiple microservices come with the benefit of less code duplication, but tightly couples the services together. This leads to a loss of independence, one of the key benefits of microservices. Code changes in shared libraries require coordination across multiple development teams, which hinders autonomy and thus reduces productivity. \newline
+\noindent\textbf{Sources:} \cite{
+    taibi_definition_2018,
+    taibi_microservices_2020}
+    
+\subsubsection{Shared Persistence}
+\noindent\textbf{Description:} The shared persistence anti pattern occurs when different microservices access or manage the same database. Worst case, different microservices access the same entities. This anti pattern couples microservices, leading to a loss of independence and result in scaling problems. \newline
+\noindent\textbf{Sources:} \cite{
+    taibi_definition_2018,
+    taibi_microservices_2020,
+    neri_design_2019,
+    bogner_towards_2019}
+    
+\subsubsection{Wrong Cuts}
+\noindent\textbf{Description:} There are multiple reasons why wrong cuts of microservices happen, such as, not knowing the domain (see \textit{domain driven design}) or cutting based on technical layers (presentation, business, data) instead of business domains.\newline
+\noindent\textbf{Sources:} \cite{
+    taibi_definition_2018,
+    taibi_microservices_2020,
+    bogner_towards_2019}
+
+\subsection{Automatic Anti Pattern Detection Approaches}
+As \textit{Azadi et al.} \cite{azadi_architectural_2019}, \textit {Fontana et al.} \cite{fontana_automatic_2012}, \textit{Fernandes et al.} \cite{fernandes_review-based_2016} and multiple other studies illustrate, there are already existing tools for detecting (general\footnote{General in the sense of not focusing on microservice architectural anti patterns.}) architectural anti patterns. These tools and research literature show, that there are different approaches to detect anti patterns automatically. The intent of this subsection is to give a brief overview of these approaches. \newline
+
+For example, \textit{Arcan} \cite{fontana_arcan_2017, fontana_automatic_2016, biaggi_architectural_2018}, builds a dependency graph on class and package level, which is stored in a graph database. This graph can then be used to, for example, detect cyclic dependencies on class and package level. \newline
+
+Another approach is to parse (at least some elements of) the source code into an abstract representation, such as an abstract syntax tree. This approach is partly used by \cite{imranur_curated_2019}. Other tools extract metrics \cite{fernandes_review-based_2016}, such as LOC. The abstract syntax tree or the metrics are then used to attempt to draw conclusions about existing anti patterns. \newline
+
+Other approaches, such as \cite{borges_algorithm_2019}, try to detect predefined search patterns (in the case of \cite{borges_algorithm_2019} regular expression patterns). There are also approaches, such as ArchUnit\footnote{https://www.archunit.org/ Accessed 25.03.2020}, where a developer (or architect) can write code (in this case unit tests) to assert/ensure certain architecture rules. \newline
+
+% Machine Learning
+According to \cite{al-shaaby_bad_2020}, \cite{arcelli_fontana_comparing_2016} and its successfully replicated study \cite{di_nucci_detecting_2018} are automatic detection approaches utilizing machine learning techniques achieving promising results. \textit{A machine learning classifier needs first to be trained using a set of code smell examples to generate a model. The generated models are then used to identify or detect code smells in unseen or new instances. The power of the generated model relies on various criteria related to the dataset, the machine learning classifiers, the parameters of the classifier itself, etc.} \cite{al-shaaby_bad_2020}
+
+\section{Related Work}
+This section discusses recent\footnote{Both works were published in September 2019.} published works by \textit{Rahman et al.} \cite{imranur_curated_2019} and \textit{Borges and Khan} \cite{borges_algorithm_2019}. \textit{Rahman et al.} focused on creating a dataset of open source microservice projects. \textit{Borges and Khan} built two scripts, that attempt to detect anti patterns in a single (pre-selected) project.
+
+\subsection{\textit{Rahman et al.} - A curated Dataset of Microservices-Based Systems}
+This work \cite{imranur_curated_2019} provides a dataset of open source microservice projects. The work is split into 3 different parts: \textit{project selection}, \textit{data collection} and \textit{dataset production}. The \textit{dataset production}, is the result of combining the results of \textit{project selection} and \textit{data collection}. \newline
+
+\noindent\textbf{Project Selection}\newline
+To find open source projects for their dataset they searched on GitHub, for microservice projects which use Docker and are developed in Java, with the query:
+\begin{lstlisting}
+"micro-service" OR microservice OR "micro-service"
+filename:Dockerfile language:Java
+\end{lstlisting}
+\noindent which resulted in 18,369 repositories, from which they manually analyzed the first 1000 repositories. They then opened questions on different forums (StackOverflow, ResearchGate and Quora) to ask whether practitioners were aware of other relevant open source microservice projects. The resulting list contains the top 20 repositories fulfilling their requirements. Apparently not all projects in the list were developed in Java (as initially stated), but a few in C\#, which are used for the dataset of this thesis. \newline
+
+\noindent\textbf{Data Collection}\newline
+They decorated the list of projects with information such as LOC and analyzed the dependencies between services. For the LOC count the tool \textit{SLOCcount}\footnote{https://dwheeler.com/sloccount/ Accessed 25.03.2020} was utilized. For the analysis of dependencies a tool was developed. The strategy of the tool is to analyze the \lstinline{docker-compose} files\footnote{This approach is also utilized for the \lstinline{CyclicDependencyAnalyzer} of this thesis!}, since it contains the definition of services (and sometimes the information on which other services a service depends on). On top of that, the tool parses the Java source code to find internal API calls between services. Based on this information, the tool can create a directed dependency graph.
+
+\subsection{\textit{Borges and Khan} - Algorithm for Detecting Anti Patterns in Microservices Projects}
+This work \cite{borges_algorithm_2019} provides two python scripts used to analyze a single pre-selected open source microservice project. \newline
+
+The first script uses regular expressions to extract data from the source code of the microservice project. From a microservice perspective the following extracted values are relevant: count of hardcoded IP addresses, version numbers and project imports. They also detect inappropriate method names, such as "run", and too long (threshold: 30 characters) class or method names. Furthermore, the script counts the number of parameters (threshold: 5) of each method for detecting too big interfaces. Finally it detects methods and classes instantiated from too many files (threshold: 30). These anti patterns can be regarded as \textit{general} anti patterns, which are already covered by multiple static analysis tools. \newline
+
+The second script builds a network graph out of classes, where each class represents a node in the network. Based on this network the closeness and betweenness values of nodes are calculated. High closeness values indicate that a resource is close to others. High betweenness values indicate that a resource is used by many files. For their exact (mathematical) definition of closeness and betweenness see \cite{borges_algorithm_2019}. They use the calculated values as result and did not further use them, to, for example, detect the \textit{Shared Libraries} anti pattern. Furthermore, the work plots a visualization of the imports between nodes.
+
+\section{Methodology}
+To fulfill the main objectives and to yield in-depth results with respect to practical usage, it is necessary to implement a  prototype (anti pattern analyzer), to identify open source projects, implementing the microservice architecture and to conduct a case study. The results of the case study are supposed to allow substantial answers to the stated research questions. To facilitate the comprehension of the complete methodology section, the prototype is described in more detail than perhaps expected in a methodology section.\newline
+
+It is not the goal (or intent) to analyze any anti patterns related to domain driven design, and thus, analyzing wrong cuts of microservices, as there are already multiple approaches available for service decomposition \cite{krause_microservice_2020, gysel_service_2016, baresi_microservices_2017}.
+
+\subsection{Prototype}
+The prototype is constructed for and will be able to detect a selected subset of anti patterns identified in the \textit{2.1 Microservice Anti Patterns} section, based on the work of \cite{taibi_definition_2018, taibi_microservices_2020, neri_design_2019, bogner_towards_2019}. From a \textit{high-level} point of view regarding main components, the prototype consists of several analyzers, each of which tests one specific anti pattern. The prototype in particular contains analyzers for:
+\begin{itemize}
+    \item API Versioning
+    \item Cyclic Dependency
+    \item Hardcoded Endpoints
+    \item Megaservice
+    \item Lack of Monitoring
+    \item Shared Libraries
+    \item Shared Persistence
+\end{itemize}
+Each analyzer has meta information available about all microservices of the project that is analyzed. For retrieving this meta information, configuration files and source code will be parsed and transformed to an internal representation. Due to the complexity of these transformation tasks, the implemented prototype will have some restrictions, such as:
+\begin{itemize}
+    \item \lstinline{docker-compose.yml} must be present in the project,
+    \item source code language needs to be C\# and
+    \item project type is ASP.NET Core.
+\end{itemize}
+On a \textit{"lower level"}, the prototype consists of 5 sub-projects (main services), \textit{ConfigurationService}, \textit{ServiceExtractorProvider}, \textit{SourceCodeService}, \textit{AnalyzerService} and the \textit{Prototype "Frontend"}. \newline
+
+\noindent\textbf{ConfigurationService}\newline
+The \lstinline{ConfigurationService} is responsible for loading and parsing the prototype configuration file. The configuration file contains information, such as which projects should be analyzed and which analyzers should be used. Furthermore, it also allows to configure some analyzer settings. \newline
+
+\noindent\textbf{ServiceExtractorProvider}\newline
+The \lstinline{ServiceExtractorProvider} provides the correct \lstinline{ServiceExtractor} based on the detected directory structure of a given project. A \lstinline{ServiceExtractor} is responsible for creating a directed graph of the detected services. A certain node in the graph corresponds to a service and an edge to a dependency. Since only projects with a \lstinline{docker-compose.yml} file can be used in this prototype, correspondingly only a \lstinline{DockerComposeServiceExtractor} was implemented\footnote{The implementation is abstracted by an interface, so it can be replaced by any other approach.}. This \lstinline{ServiceExtractor} reads the \lstinline{docker-compose.yml} file into the memory, similar to \textit{Rahman et al.} \cite{imranur_curated_2019} as stated in the \textit{Related Work 3.1} section, and creates a graph based on it. Each node contains the path to the source code location as meta information. \newline
+
+\noindent\textbf{SourceCodeService}\newline
+The \lstinline{SourceCodeService} is responsible for parsing source code files (\lstinline{".cs"}), project files (\lstinline{".csproj"}) and configuration files (\lstinline{".json"}) to an internal representation. For parsing of source code files, Roslyn\footnote{https://github.com/dotnet/roslyn Accessed 27.03.2020} is utilized. The parsed syntax tree is then transformed into a "slimmed down" internal syntax tree, which contains the syntax information necessary for the analyzers, such as class hierarchies, method invocations and attributes. For each project file all referenced libraries are extracted and collected. Configuration files are read into memory and the entire content of the file is stored as a string mapped to its corresponding project. \newline
+
+\noindent\textbf{AnalyzerService}\newline
+The \lstinline{AnalyzerService} initializes all analyzers (types implementing an \lstinline{IAnalyzer} interface) which are found in the assembly. It invokes each analyzer for each project and collects their results. Each analyzer is invoked with the service graph (which contains all services of that project as nodes) and the configuration as invocation arguments. The analyzer can utilize each of the services described above. When the analyzer is finished, it returns a result which contains:
+\begin{itemize}
+    \item the name of the analyzer
+    \item the \textbf{Total Number of Violations (TNV)}
+    \item the \textbf{Relative Number of Violations (RNV)}
+    \item (an array of error messages for the visualization in the frontend)
+\end{itemize}
+The calculation of the RNV will be further discussed in the \textit{5.1 Prototype Implementation} section, for each analyzer respectively. \newline
+
+\noindent\textbf{Frontend}\newline
+The frontend calls the \lstinline{AnalyzerService} and waits for its resulting report. It then scales all relative values so that a meaningful comparison between all projects will be possible. This result is then formatted and printed for direct representation to the console.
+
+\subsection{Project Selection}
+A list of open source projects will be compiled. Since there are multiple restrictions, as stated above in the \textit{4.1 Prototype} section, the goal is to have a dataset of at least 5-10 projects available for investigation. \textit{Rahman et al.} \cite{imranur_curated_2019} provides a dataset of 20 microservice based projects with links to their respective repositories on GitHub. To extend this list of repositories, other microservice open source projects will be selected by an extensive (manual) search on GitHub. 
+First, a search will be performed with the query:
+\begin{lstlisting}
+filename:docker-compose language:C# topic:microservice
+\end{lstlisting}
+The query should, in theory, only provide repositories, which contain a \lstinline{docker-compose} file, are written (mostly) in C\# and contain the string "microservice" either in the title, description, as tag or in the \textit{readme}. The resulting repositories\footnote{Repositories from \textit{Rahman et al.} and GitHub.} are then manually analyzed to ensure that only projects that fit to the constraints of the prototype are selected finally.
+To avoid imbalances and incomparability, a mixture of demo projects, created for educational purposes, and industrial projects must be excluded. Therefore only demo projects are finally included in the case study.
+
+\subsection{Case Study}
+For the case study the prototype will be set up and used to analyze all of the projects from the compiled dataset.
+Furthermore, since for example the \textit{Shared Libraries} anti pattern is not considered as harmful from the perspective of practitioners as the \textit{Hardcoded Endpoints} anti pattern \cite{taibi_definition_2018, taibi_microservices_2020}, a weighting is calculated for all anti patterns for which a corresponding analyzer is implemented at all. This weighting is based on the surveys conducted by \textit{Taibi et al.} \cite{taibi_definition_2018, taibi_microservices_2020}. This weighting will then be factored into the report yielded by the prototype to have the required data to answer both research questions. An anti pattern weighting is calculated as: 
+\begin{equation}
+    \frac{p1 * h1 + p2 * h2}{p1 + p2}
+\end{equation}
+where $p1$ and $p2$ are the amount of participants and $h1$ and $h2$ are the resulting \textit{perceived harmfulness}\footnote{\textit{Harmfulness was measured on a 10-point Likert scale, 0 means ”the anti pattern is not harmful” and 10 means ”the anti pattern is extremely harmful”} \cite{taibi_microservices_2020}.} values of the two surveys. \newline
+
+To answer \textbf{RQ1}, the projects are ranked based on each projects sum of each analyzer result set, which is the product of the scaled\footnote{Scaling will be explained in the \textit{5.3 Case Study} section.} RNV value and the weighting of the analyzed anti pattern. The \textit{best} project is considered to be the one where the resulting value is the lowest:
+\begin{equation}
+    min\bigg(\sum_{i=1}^{c} scaledRNV_i \times analyzerWeight_i\bigg)
+\end{equation}
+where $c = count(analyzers)$. This \textit{best practice project} is then suggested as an \textit{advantageous guideline for the implementation of a microservice project}. \newline
+
+To answer \textbf{RQ2}, the resulting sets of findings (from the report) are aggregated and then proposed to be part of a helpful list of \textit{frequently occurring pitfalls}.
+
+\section{Results}
+\subsection{Prototype Implementation}
+This subsection will provide an insight into the implementation of each analyzer. For reference, the "high-level" architecture is described in the \textit{4.1 Prototype} section. For each analyzer, a general overview and pseudocode is provided, which explains the general technique, in which way the respective anti pattern is detected. This basic approach and description can be used as a guide for any future implementation in other programming languages. The entire implementation is available as a reference in an open source GitHub repository\footnote{https://github.com/speiser/masterthesis-computerscience}. As the pseudocode will show, each analyzer follows the same "\textit{working pattern}". It iterates over the \lstinline{services} array provided by the \lstinline{ServiceExtractorProvider}\footnote{As described in the \textit{4.1 Prototype} section.}. Then it checks, based on implemented rules, whether the current service \textit{implements} the anti pattern. Based on the results of all services, a \textbf{Total Number of Violations (TNV)} and a \textbf{Relative Number of Violations (RNV)}, represented by \lstinline{total} and a \lstinline{relative} respectively, is calculated. The RNV is calculated in addition, to allow reasonable comparison of results of projects of different sizes.
+
+\subsubsection{API Versioning}
+
+For each service in a project, the \lstinline{ApiVersioningAnalyzer} retrieves the internal source code representation.
+\begin{lstlisting}
+controllerCount = 0
+numberOfViolations = 0
+
+for (var service in services) {
+  source = GetParsedSource(service.ProjectPath)
+\end{lstlisting}
+Then all controllers are extracted from the internal source code representation. A controller in ASP.NET handles incoming request, verifies the incoming model and calls the correct endpoint, based on the request type (e.g. \lstinline{GET, POST, ..}) and the model. The analyzer then loops over all controllers found in the service, to see whether it has an \lstinline{ApiVersion} attribute. If the controller contains this attribute, the controller is regarded as versioned and thus, can be skipped.
+\begin{lstlisting}
+  controllers = source.GetControllers()
+  controllerCount += count(controllers)
+
+  for (controller in controllers) {
+    if (controller.ApiVersionAttribute != null) {
+      continue
+    }
+\end{lstlisting}
+If no \lstinline{ApiVersion} attribute is present, it is attempted to get the \lstinline{Route} attribute of the controller, which is the \lstinline{URI} that could contain a version string, such as \lstinline{"api/v1/my_endpoint"}. Again if the attribute is present and contains a version string the controller is regarded as versioned.
+\begin{lstlisting}
+    if (controller.RouteAttribute.HasVersionString()) {
+      continue
+    }
+\end{lstlisting}
+If the previous checks failed, all HTTP endpoints of the controller are retrieved. Subsequently, similar to the previous test, every endpoint is checked, whether it has a \lstinline{Route} attribute containing a version string. If \textbf{all} endpoints are versioned, the controller is regarded as versioned.
+\begin{lstlisting}
+    endpoints = controller.GetEndpoints()
+    
+    allEndpointsHaveVersionString = 
+      endpoints.All(ep => ep.RouteAttribute.HasVersionString())
+      
+    if (allEndpointsHaveVersionString) {
+      continue
+    }
+\end{lstlisting}
+In the case that all of the above checks fail, the controller is regarded as not versioned and therefore it is considered a violation.
+\begin{lstlisting}
+    numberOfViolations++
+  }
+}
+\end{lstlisting}
+After each service was analyzed, the number of \lstinline{total} (TNV) and \lstinline{relative} (RNV) violations are calculated and reported.
+\begin{lstlisting}
+total = numberOfViolations
+relative = total / controllerCount
+\end{lstlisting}
+
+\subsubsection{Cyclic Dependency}
+For each service in a project, the \lstinline{CyclicDependencyAnalyzer} checks whether the service depends on itself over a chain of several dependencies. If a cyclic dependency is detected it is counted as violation. The check, aiming for simplicity, is outlined by the \lstinline{HasCyclicDependency} method, as presented in an abstracted way below. Basically, it follows the dependency chain recursively and stores all previously visited services. If one of the services in the chain has a dependency on the checked service, it is identified and noticed as a cyclic dependency.
+\begin{lstlisting}
+numberOfViolations = 0
+
+for (service in services) {
+  if (!service.HasCyclicDependency()) {
+    continue
+  }
+
+  numberOfViolations++
+}
+\end{lstlisting}
+After each considered and investigated service was analyzed, the number of \lstinline{total} (TNV) and \lstinline{relative} (RNV) violations are calculated and reported.
+\begin{lstlisting}
+total = numberOfViolations
+relative = total / count(services)
+\end{lstlisting}
+
+\subsubsection{Hardcoded Endpoints}
+For each service in a project, the \lstinline{HardcodedEndpointsAnalyzer} retrieves all configuration files of the service. Auto-generated and irrelevant files, such as, \lstinline{package-lock.json} and \lstinline{launchSettings.json}\footnote{A full list of all excluded files and directories can be found in the section \textbf{A} of the \textit{Appendix}.} are excluded.
+\begin{lstlisting}
+numberOfViolations = 0
+
+for (service in services) {
+  files = GetConfigFiles(service.ProjectPath)
+\end{lstlisting}
+A \lstinline{HashSet} is utilized to ensure that no duplicate endpoints are included when storing all extracted endpoints.
+\begin{lstlisting}
+  endpoints = new HashSet<string>()
+\end{lstlisting}
+Then two regular expressions are applied to each configuration file, to extract all IP addresses and URLs. The regular expression \lstinline{urlRegex}\footnote{Based on https://superuser.com/questions/623168/regex-to-parse-urls-from-text Accessed 22.03.2020} 
+\begin{lstlisting}
+(https?):\/\/(www\.)?[a-z0-9\.:].*?(?=\s)
+\end{lstlisting}
+\noindent to extract all URLs and \lstinline{ipRegex}\footnote{Based on https://www.regular-expressions.info/ip.html Accessed 22.03.2020} 
+\begin{lstlisting}
+\b\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}\b.
+\end{lstlisting}
+to extract IP addresses.
+\begin{lstlisting}
+  for (file in files) {
+    urls = urlRegex.Match(file)
+    ips = ipRegex.Match(file)
+
+    for (url in urls) {
+      endpoints.Add(url)
+    }
+
+    for (ip in ips) {
+      endpoints.Add(ip)
+    }
+  }
+\end{lstlisting}
+All found endpoints in each service count for the number of violations.
+\begin{lstlisting}
+  numberOfViolations += count(endpoints)
+}
+\end{lstlisting}
+After each service was analyzed, the number of \lstinline{total} (TNV) and \lstinline{relative} (RNV) violations are calculated and reported to follow the procedure of evaluation.
+\begin{lstlisting}
+total = numberOfViolations
+relative = total / count(services)
+\end{lstlisting}
+
+\subsubsection{Megaservice}
+The \lstinline{MegaserviceAnalyzer} gets all controllers from each service.
+\begin{lstlisting}
+numberOfViolations = 0
+
+for (var service in services) {
+  source = GetParsedSource(service.ProjectPath)
+
+  controllers = source.GetControllers()
+\end{lstlisting}
+If the amount of controllers surpasses a certain size threshold it is considered as a megaservice. For the case study in this thesis the \lstinline{SizeThreshold} was set to 3. As stated in the \textit{2.1.6 Megaservice} section, there is no "rule" that defines how big a microservice should be and that size metrics are never sufficiently accurate. The limit of maximum 3 controllers is \textit{quite generous} to detect if a service implements multiple business processes. Since this size metric is not based on a scientific source, it was deliberately set higher than 1 (as in 1 business case).
+\begin{lstlisting}
+  if (count(controllers) > SizeThreshold) {
+    numberOfViolations++
+  }
+}
+\end{lstlisting}
+After each service was analyzed, the number of \lstinline{total} (TNV) and \lstinline{relative} (RNV) violations are calculated and reported again with respect to the specific analyzer.
+\begin{lstlisting}
+total = numberOfViolations
+relative = total / count(services)
+\end{lstlisting}
+
+\subsubsection{Lack of Monitoring}
+The \lstinline{MonitoringAnalyzer} retrieves the parsed source code of each service.
+\begin{lstlisting}
+numberOfViolations = 0
+
+for (service in services) {
+  source = GetParsedSource(service.ProjectPath)
+\end{lstlisting}
+It then fetches the \lstinline{Startup} class, which is used to, for example, set up dependency injection, load configuration files and to configure services.
+\begin{lstlisting}
+  startupClass = source.GetClass("Startup")
+\end{lstlisting}
+The \lstinline{Startup} class contains a \lstinline{ConfigureServices} method. In this method, a developer can invoke the \lstinline{AddHealthCheck} method. This either adds a default health check implementation or an optional custom implementation. The service can be monitored if the \lstinline{AddHealthCheck} invocation exists.
+\begin{lstlisting}
+  configureServicesMethod
+    = startupClass.GetMethod("ConfigureServices")
+    
+  if (configureServicesMethod.InvokesAddHealthCheck()) {
+    continue
+  }
+\end{lstlisting}
+If the previous check failed, there is another potential option to add a health check. This is the \lstinline{MapHealthCheck} method. This is basically the same behaviour as the previously explained method, but is located in the \lstinline{Configure} method which is also found in the \lstinline{Startup} class. If this method is not called, it is considered as a violation.
+\begin{lstlisting}
+  configureMethod = startupClass.GetMethod("Configure")
+  if (configureMethod.InvokesMapHealthCheck()) {
+    continue
+  }
+
+  numberOfViolations++
+}
+\end{lstlisting}
+After each service was analyzed, the number of \lstinline{total} (TNV) and \lstinline{relative} (RNV) violations are calculated and reported.
+\begin{lstlisting}
+total = numberOfViolations
+relative = total / count(services)
+\end{lstlisting}
+
+\subsubsection{Shared Libraries}
+After creating a map (\lstinline{Dictionary}), which will store how often (\lstinline{int}) a particular library (\lstinline{string}) is used, the \lstinline{SharedLibraryAnalyzer} retrieves the parsed project file for each service.
+\begin{lstlisting}
+usedLibraries = new Dictionary<string, int>()
+
+for (service in services) {
+  projectFile = GetParsedProjectFile(service.ProjectPath)
+\end{lstlisting}
+Then it detects all libraries used by the service, excluding a few default/standard libraries\footnote{A full list of excluded libraries can be found in the section \textbf{B} of the \textit{Appendix}.}, such as those provided by Microsoft.
+\begin{lstlisting}
+  projectLibraries = projectFile.Libraries
+  projectLibraries = projectLibraries.FilterIgnoredLibraries()
+\end{lstlisting}
+After that the counter for each used library is increased by 1 in the previously created map.
+\begin{lstlisting}
+  for (library in projectLibraries) {
+    usedLibraries[library]++
+  }
+}
+\end{lstlisting}
+In the last step all libraries that are used exactly only once are left out, so that a list of shared libraries remains.
+\begin{lstlisting}
+sharedLibraries = usedLibraries.Where(item => item.Value > 1)
+\end{lstlisting}
+After each service was analyzed, the number of \lstinline{total} (TNV) and \lstinline{relative} (RNV) violations are calculated (and reported).
+\begin{lstlisting}
+total = count(sharedLibraries)
+relative = total / count(services)
+\end{lstlisting}
+
+\subsubsection{Shared Persistence}
+At first a \lstinline{HashSet} is created, which will contain service name and connection string pairs. To ensure that no duplicate connection strings of the same service are included a \lstinline{HashSet} is utilized. The \lstinline{SharedPersistenceAnalyzer} then retrieves the configuration file of each service.
+\begin{lstlisting}
+projectConnections = new HashSet<(string, string)>()
+
+for (service in services) {
+  files = GetConfigFiles(service.ProjectPath)
+\end{lstlisting}
+The analyzer only considers \textit{appsettings} files, since connection strings are usually stored in a \lstinline{appsettings(.ENV).json} file.
+\begin{lstlisting}
+  for (file in files) {
+    if (!file.IsAppsettingsFile()) {
+      continue
+    }
+\end{lstlisting}
+Subsequently the connection strings are extracted from the \textit{appsettings} file and stored as pair of service name and connection string.
+\begin{lstlisting}
+    connectionStrings = ExtractConnectionStrings(file)
+    for (connectionString in connectionStrings) {
+      projectConnections.Add((service.Name, connectionString))
+    }
+  }
+}
+\end{lstlisting}
+Then all the connection strings are extracted to a list and duplicates are filtered, so that only shared connection strings are counted.
+\begin{lstlisting}
+allConnectionStrings = projectConnections.Select(x => x.Item2)
+sharedConnectionStrings = GetDuplicates(allConnectionStrings)
+\end{lstlisting}
+After each service was analyzed, the number of \lstinline{total} (TNV) and \lstinline{relative} (RNV) violations are calculated and reported.
+\begin{lstlisting}
+total = count(sharedConnectionStrings)
+relative = total / count(services)
+\end{lstlisting}
+
+\subsection{Project Dataset}
+4 projects of interest, out of the 20 projects provided by \textit{Rahman et al.} \cite{imranur_curated_2019}, were selected. 
+The search query 
+\lstinline{filename:docker-compose language:C# topic:microservice}
+resulted in a result set of 176 repositories on GitHub. After each repository was manually investigated, 3 further  repositories were added to the resulting dataset. The 4 repositories selected from the dataset of \cite{imranur_curated_2019} were also a result of the specified search query. 
+This means, that a total amount of 192 repositories were manually investigated. Only \textit{non forked} repositories with more than 40 commits were taken into consideration for selection. In total 7 repositories were selected, which meets the objective of 5-10 repositories as defined in the \textit{4.2 Project Selection} section. The selected repositories fit into the set restrictions of the prototype without the need to adapt anything. Thus, a full automated analysis will be possible.
+\textit{Table \ref{tab:Dataset}} contains the resulting list of repositories. To allow replication of the results of the case study, both a link\footnote{Non-shortend URLs are available in the section \textbf{C} of the \textit{Appendix}.} to the repository and the hash of the checked-out commit are provided. \newline
+
+\noindent\textbf{Disclaimer: } GitHub Terms of Service\footnote{https://help.github.com/en/github/site-policy/github-terms-of-service Accessed 08.04.2020} permits the extraction and usage of public information (such as source code in a public repository), so no licensing problems arise in the context of this thesis.
+
+\begin{table}[h!]
+\resizebox{\textwidth}{!}{%
+    \begin{tabular}{|l|>{\ttfamily}l|>{\ttfamily}l|}
+    \hline
+Name & \normalfont GitHub Repository & \normalfont Commit-Hash  \\ \hline \hline
+crm                                    & https://git.io/JvdAZ & 5e6e8de996a2aed4cf8b5a5d184f110a5e829ab6 \\ \hline
+EnterprisePlanner                      & https://git.io/JvdAW & 5b458a0ea3ea1d37a1135e3d92afcdeffc100662 \\ \hline
+eShopOnContainers                      & https://git.io/JvdAl & d227823da496991d64f52bc72cafb6405f5d029b \\ \hline
+microservices-dotnetcore-docker-sf-k8s & https://git.io/JvdA8 & 69e46d1f3bb2f9819309e92a3d84530150e7e2ed \\ \hline
+pitstop                                & https://git.io/JvdA4 & e5a35cc2df87c6c2d69792ad82b7302b6555b1e9 \\ \hline
+VehicleTracker                         & https://git.io/JvdAB & b4c1159feb81d12c9883ca16329ecb978131849b \\ \hline
+vehicle-tracking-microservices         & https://git.io/JvdAR & 60adfde6231196b0b66ecd8646710c0f2141a73f \\ \hline
+    \end{tabular}
+}
+\caption{The resulting list of repositories.}
+\label{tab:Dataset}
+\end{table}
+
+\subsection{Case Study Results}
+Before analyzing the projects of the compiled dataset, the weighting of each anti pattern was calculated with the equation (1) provided in the \textit{4.3 Case Study} section. The survey \cite{taibi_definition_2018} was conducted with 72 participants and \cite{taibi_microservices_2020} with 27, accordingly, $p1 = 72$ and $p2 = 27$. \textit{Table \ref{tab:CalculatedWeight}} contains the resulting weight for each anti pattern. The missing of entries in \textit{Table \ref{tab:CalculatedWeight}} means that these anti patterns were not part of the survey.
+
+\begin{table}[h!]
+\begin{center}
+\begin{tabular}{|l|r|r|r|}
+\hline
+Anti Pattern        & \multicolumn{1}{l|}{Weight \cite{taibi_definition_2018}} & \multicolumn{1}{l|}{Weight \cite{taibi_microservices_2020}} & \multicolumn{1}{l|}{Calculated Weight} \\ \hline \hline
+API Versioning      & 6.500 & 6.050 & 6.377 \\ \hline
+Cyclic Dependency   & 7.000 & 7.000 & 7.000 \\ \hline
+Hardcoded Endpoints & 8.000 & 8.000 & 8.000 \\ \hline
+Megaservice         &       & 6.000 & 6.000 \\ \hline
+Lack of Monitoring  &       & 5.000 & 5.000 \\ \hline
+Shared Libraries    & 4.000 & 4.000 & 4.000 \\ \hline
+Shared Persistence  & 6.500 & 6.050 & 6.377 \\ \hline
+\end{tabular}
+\caption{Perceived harmfulness values of the respective anti patterns, taken from the surveys conducted by \textit{Taibi et al.} where \textit{harmfulness was measured on a 10-point Likert scale, 0 means ”the anti pattern is not
+harmful” and 10 means ”the anti pattern is extremely harmful”}. The resulting calculated weight is calculated using equation (1) of the \textit{4.3 Case Study} section.}
+\label{tab:CalculatedWeight}
+\end{center}
+\end{table}
+
+After that, the prototype analyzed the 7 projects from the dataset. Before the final results of the projects are calculated, all results of the individual analyzers must be scaled across all projects. The scaling factor for each anti pattern is calculated\footnote{As a side note: All of the calculations are automatically done by the prototype. The calculations are listed and described here for the sake of reproducibility.} as follows:
+
+\begin{equation}
+    scalingFactor_i = \frac{1}{maximum_i}
+\end{equation}
+where $maximum_i$ is the highest \textbf{Relative Number of Violations (RNV)} reported from the analyzer $i$ across all analyzed projects. The $scalingFactor_i$ is then applied to all RNV values in each project reported by the analyzer $i$: 
+\begin{equation}
+    scaledRNV_i = scalingFactor_i \times RNV_i
+\end{equation}
+Thereafter the resulting value for each project was calculated with:
+\begin{equation}
+    CNV_i = \sum_{i=1}^{c} scaledRNV_i \times analyzerWeight_i
+\end{equation}
+where $c = count(analyzers) = 7$ as described in the \textit{4.3 Case Study} section. The resulting \textbf{Calculated Number of Violations (CNV)} of each project are presented in \textit{Table \ref{tab:CNVperProject}}. Each CNV value was rounded to 4 decimal places. The projects are ranked from the lowest to the highest value, where lower will be regarded as being \textit{better}, where better means the count and severity/harmfulness of the implemented anti patterns is considered to be lower. \newline
+
+\begin{table}[h!]
+\begin{center}
+\begin{tabular}{|l|r|r|}
+\hline
+Project                                & \multicolumn{1}{l|}{CNV} & \multicolumn{1}{l|}{Rank} \\ \hline \hline
+vehicle-tracking-microservices         & 8.4286  & 1 \\ \hline
+VehicleTracker                         & 13.5201 & 2 \\ \hline
+microservices-dotnetcore-docker-sf-k8s & 14.6178 & 3 \\ \hline
+pitstop                                & 18.0370 & 4 \\ \hline
+eShopOnContainers                      & 21.2526 & 5 \\ \hline
+EnterprisePlanner                      & 21.3260 & 6 \\ \hline
+crm                                    & 24.7582 & 7 \\ \hline
+\end{tabular}
+\caption{Prototype results, illustrated as \textbf{Calculated Number of Violations (CNV)}, after analyzing the projects from the compiled dataset, ranked accordingly from lowest to highest result value. Resulting values are rounded to 4 decimal places.}
+\label{tab:CNVperProject}
+\end{center}
+\end{table}
+
+Since the size threshold used in the \lstinline{MegaserviceAnalyzer} as described in \textit{5.1.4}, is not based on any sources, a separate analysis of the projects was carried out, without this analyzer. This is due the fact that one could argue that the results are not meaningful since they are not based on a scientific oriented, proven metric. \textit{Table \ref{tab:CNVperProjectWithoutMegaservice}} presents the prototype's results while not considering the \textit{Megaservice} anti pattern. The rank of both ways of analysis is given to explicitly show differences in results. \newline
+
+\begin{table}[h!]
+\begin{center}
+\begin{tabular}{|l|r|r|r|}
+\hline
+Project                                & \multicolumn{1}{l|}{CNV} & \multicolumn{1}{l|}{Rank} & \multicolumn{1}{c|}{\begin{tabular}[c]{@{}c@{}}Previous\\ Rank\end{tabular}} \\ \hline \hline
+vehicle-tracking-microservices         & 8.4286  & 1 & 1 \\ \hline
+pitstop                                & 11.8147 & 2 & 4 \\ \hline
+VehicleTracker                         & 13.5201 & 3 & 2 \\ \hline
+eShopOnContainers                      & 14.2526 & 4 & 5 \\ \hline
+microservices-dotnetcore-docker-sf-k8s & 14.6178 & 5 & 3 \\ \hline
+crm                                    & 17.7582 & 6 & 7 \\ \hline
+EnterprisePlanner                      & 21.3260 & 7 & 6 \\ \hline
+\end{tabular}
+\caption{Prototype results, illustrated as \textbf{Calculated Number of Violations (CNV)}, after analyzing the projects from the compiled dataset without the megaservice analyzer, ranked accordingly from lowest to highest result value, in comparison to the previous results. Resulting values are rounded to 4 decimal places.}
+\label{tab:CNVperProjectWithoutMegaservice}
+\end{center}
+\end{table}
+
+As \textit{Table \ref{tab:CNVperProjectWithoutMegaservice}} illustrates is the \lstinline{vehicle-tracking-microservices} project remaining the exclusive one with the lowest CNV value. Thus, as an answer to \textbf{RQ1}, the open source project \lstinline{vehicle-tracking-microservices} is suggested as \textit{an advantageous guideline for the implementation of a microservice project}. \newline
+
+\pagebreak
+\textit{Table \ref{tab:TNVperProjectPerAntiPattern}} provides an overview of how often each anti pattern has been implemented by each project.
+As one can see, the response of \textbf{RQ1} is further supported by the fact that the \lstinline{vehicle-tracking-microservices} project is the only project where the implementation contains only 2 of the 7 anti patterns and provides versioning on each controller in every service.
+However, one can see that the \lstinline{pitstop} project is the only project where each service has its own health check. \newline
+
+\begin{table}[h!]
+\kern-2.5em
+\begin{center}
+\scalebox{0.9}{
+    \begin{tabular}{ *1{l|} *7{r} }
+          \multicolumn{1}{c}{} 
+        & \mcrot{1}{l}{70}{API Versioning}
+        & \mcrot{1}{l}{70}{Cyclic Dependency}
+        & \mcrot{1}{l}{70}{Hardcoded Endpoints}
+        & \mcrot{1}{l}{70}{Megaservice}
+        & \mcrot{1}{l}{70}{Monitoring}
+        & \mcrot{1}{l}{70}{Shared Libraries}
+        & \mcrot{1}{l}{70}{Shared Persistence} \\ \hline
+    crm                 & 7  & 0 & 25 & 1  & 1  & 5 & 0 \\ 
+    EnterprisePlanner   & 6  & 0 & 0  & 0  & 4  & 5 & 1 \\ 
+    eShopOnContainers   & 23 & 0 & 45 & 2  & 1  & 6 & 1 \\ 
+    microservices-dotnetcore-docker-sf-k8s & 5  & 0 & 11  & 0  & 1  & 7 & 0 \\ 
+    pitstop             & 8  & 0 & 18 & 1  & 0  & 1 & 0 \\ 
+    VehicleTracker      & 3  & 0 & 0  & 0  & 4  & 3 & 0 \\ 
+    vehicle-tracking-microservices  & 0  & 0 & 0  & 0  & 5 & 6 & 0 \\ \hline
+    \end{tabular}
+}
+\caption{Overview of how often each anti pattern has been implemented by each individual project. The values given are the \textbf{Total Number of Violations (TNV)}.}
+\label{tab:TNVperProjectPerAntiPattern}
+\end{center}
+\end{table}
+
+For the sake of completeness, \textit{Table \ref{tab:RNVperProjectPerAntiPattern}} again shows an overview of how often each anti pattern was implemented by the respective projects, but this time the corresponding RNV values are given.
+The weighting is explicitly not considered in \textit{Table \ref{tab:RNVperProjectPerAntiPattern}} as it shows how often an anti pattern was detected in relation to the project's size. \newline
+
+\begin{table}[h!]
+\kern-2.5em
+\resizebox{\textwidth}{!}{%
+    \begin{tabular}{ *1{l|} *7{r} }
+          \multicolumn{1}{c}{} 
+        & \mcrot{1}{l}{70}{API Versioning}
+        & \mcrot{1}{l}{70}{Cyclic Dependency}
+        & \mcrot{1}{l}{70}{Hardcoded Endpoints}
+        & \mcrot{1}{l}{70}{Megaservice}
+        & \mcrot{1}{l}{70}{Monitoring}
+        & \mcrot{1}{l}{70}{Shared Libraries}
+        & \mcrot{1}{l}{70}{Shared Persistence} \\ \hline
+    crm                 & 1.0000 & 0.0000 & 1.0000 & 1.0000 & 0.2000 & 0.5952 & 0.0000 \\ 
+    EnterprisePlanner   & 1.0000 & 0.0000 & 0.0000 & 0.0000 & 1.0000 & 0.8929 & 1.0000 \\ 
+    eShopOnContainers   & 0.6389 & 0.0000 & 0.9000 & 1.0000 & 0.0625 & 0.2679 & 0.2500 \\ 
+    microservices-dotnetcore-docker-sf-k8s & 0.6250 & 0.0000 & 0.7040 & 0.0000 & 0.2000 & 1.0000 & 0.0000 \\ 
+    pitstop             & 1.0000 & 0.0000 & 0.6400 & 0.8889 & 0.0000 & 0.0794 & 0.0000 \\ 
+    VehicleTracker      & 1.0000 & 0.0000 & 0.0000 & 0.0000 & 1.0000 & 0.5357 & 0.0000 \\ 
+    vehicle-tracking-microservices  & 0.0000 & 0.0000 & 0.0000 & 0.0000 & 1.0000 & 0.8571 & 0.0000 \\ \hline
+    \end{tabular}
+}
+\caption{Overview of how often each anti pattern has been implemented by each individual project. The values given are the \textbf{Relative Number of Violations (RNV)}.}
+\label{tab:RNVperProjectPerAntiPattern}
+\end{table}
+
+\pagebreak
+\textit{Table \ref{tab:sumRNVperAntiPattern}} provides the sum over all projects of the RNV values for each anti pattern respectively. This is the aggregated representation of \textit{Table \ref{tab:RNVperProjectPerAntiPattern}}. The results are ranked from highest to lowest value and, again, rounded to 4 decimal places. The higher the calculated value, the more often a violation was detected by the prototype (relative to the project's size). \newline
+
+\begin{table}[h!]
+\begin{center}
+\begin{tabular}{|l|r|}
+\hline
+Anti Pattern        & \multicolumn{1}{l|}{sum(RNV)} \\ \hline \hline
+API Versioning      & 5.2639 \\ \hline
+Shared Libraries    & 4.2282 \\ \hline
+Lack of Monitoring  & 3.4625 \\ \hline
+Hardcoded Endpoints & 3.2440 \\ \hline
+Megaservice         & 2.8889 \\ \hline
+Shared Persistence  & 1.2500 \\ \hline
+Cyclic Dependency   & 0.0000 \\ \hline
+\end{tabular}
+\caption{Sum of \textbf{Relative Number of Violations (RNV)} over all projects for each anti pattern. Ranked from highest to lowest by result value. Resulting values are rounded to 4 decimal places.}
+\label{tab:sumRNVperAntiPattern}
+\end{center}
+\end{table}
+
+\textit{Table \ref{tab:sumTNVperAntiPattern}} illustrates the sum of the \textbf{Total Number of Violations (TNV)} for each anti pattern over all projects. This is the aggregated representation of \textit{Table \ref{tab:TNVperProjectPerAntiPattern}}. In total 99 hardcoded endpoints were found and 52 controllers are not versioned across all 7 projects. 33 libraries were shared between services. Furthermore, \textit{Table \ref{tab:numberProjectsImplementingAntiPattern}} shows how many projects implemented the corresponding anti pattern. This means that every project is sharing libraries between at least two services. Every project, except one, is missing \textit{API Versioning} on at least one controller and at least one service does not have a health check (\textit{Lack of Monitoring}). \newline
+
+\begin{table}[h!]
+\begin{center}
+\begin{tabular}{|l|r|}
+\hline
+Anti Pattern        & \multicolumn{1}{l|}{sum(TNV)} \\ \hline \hline
+Hardcoded Endpoints & 99 \\ \hline
+API Versioning      & 52 \\ \hline
+Shared Libraries    & 33 \\ \hline
+Lack of Monitoring  & 16 \\ \hline
+Megaservice         & 4  \\ \hline
+Shared Persistence  & 2  \\ \hline
+Cyclic Dependency   & 0  \\ \hline
+\end{tabular}
+\caption{Sum of the \textbf{Total Number of Violations (TNV)} over all projects for each anti pattern. Ranked from highest to lowest by result value.}
+\label{tab:sumTNVperAntiPattern}
+\end{center}
+\end{table}
+
+\begin{table}[h!]
+\begin{center}
+\begin{tabular}{|l|r|}
+\hline
+Anti Pattern        & \multicolumn{1}{c|}{\#Projects} \\ \hline \hline
+Shared Libraries    & 7                               \\ \hline
+API Versioning      & 6                               \\ \hline
+Lack of Monitoring  & 6                               \\ \hline
+Hardcoded Endpoints & 4                               \\ \hline
+Megaservice         & 3                               \\ \hline
+Shared Persistence  & 2                               \\ \hline
+Cyclic Dependency   & 0                               \\ \hline
+\end{tabular}
+\caption{The number of projects that implement the specified anti pattern. Ranked from highest to lowest by result value.}
+\label{tab:numberProjectsImplementingAntiPattern}
+\end{center}
+\end{table}
+
+\pagebreak
+Based on the results presented in \textit{Table \ref{tab:sumRNVperAntiPattern}}, \textit{Table \ref{tab:sumTNVperAntiPattern}} and \textit{Table \ref{tab:numberProjectsImplementingAntiPattern}} are \textit{API Versioning}, \textit{Hardcoded Endpoints}, \textit{Lack of Monitoring} and \textit{Shared Libraries} identified as most frequently occurring pitfalls in microservice projects as an answer to \textbf{RQ2}.
+
+\section{Discussion}
+This section discusses and interprets the results presented in the previous section (\textit{5 Results}) and attempts to compare them with the state-of-the-art research results from recently published papers.
+Additionally, threats to the validity of the proposed answers to the research questions are elaborated and discussed in detail.
+
+\subsection{On the Elaborated Results}
+Even though the implemented tool is "only" a prototype, it was still created with the opportunity of extensibility in mind.
+Newly created analyzers for anti patterns are automatically registered without the need to adapt the prototype's original source code.
+Furthermore the C\# source code parsing and transformation steps are abstracted and can therefore be replaced with a custom implementation for any other target language.
+Apart from that the service detection logic is extendable and not limited to repositories utilizing \lstinline{docker-compose}, as discussed in the \textit{4.1 Prototype} section. \newline
+
+Currently, as outlined in the \textit{Related Work 3.2} section, there is only one other research project that has dealt with the approach of automatically detecting anti patterns in microservice projects, namely the paper \cite{borges_algorithm_2019} by \textit{Borges and Khan}.
+Like the prototype proposed in this work is the tool by \textit{Borges and Khan} also designed to analyze multiple repositories.
+Unfortunately, it is not possible to make a direct comparison between the two research projects, as the focus of \cite{borges_algorithm_2019} was only to extract the total amount of hardcoded IP addresses, version numbers and project imports and other non microservice specific metrics.
+Furthermore, the detection approaches are based on different target languages and therefore it is impossible\footnote{Impossible with the current implementation. As described earlier it is possible to provide a Python code parser and to implement the transformation step.} for the prototype proposed in this work to analyze the single project examined in \cite{borges_algorithm_2019}. Thus, even the comparison of the total amount of hardcoded endpoints is not possible. \newline
+
+Also restrictions had to be made due to the complexity of the developed prototype.
+Due to these restrictions only a small dataset of repositories could be compiled.
+In comparison to the dataset proposed by \textit{Rahman et al.} \cite{imranur_curated_2019} where 20 repositories were identified, only 7 repositories could be obtained in this work, due to the fact that the dataset in \cite{imranur_curated_2019} was not designed to be analyzed with a tool of comparable complexity.
+Given that all relevant\footnote{Usable by the prototype.} repositories of the dataset proposed in \cite{imranur_curated_2019} were also found using the provided GitHub search query, the used search query seems adequate. \newline
+
+Since 7 repositories is a small sample size, it can be assumed that there are repositories that would achieve a lower CNV value than the proposed answer to \textbf{RQ1}.
+The proposed answer to \textbf{RQ1} refers only to the selected repositories.
+Furthermore, in the case of the \textit{Lack of Monitoring} and \textit{Shared Libraries} anti patterns, one should probably refer to the \lstinline{pitstop} project as guidance, as it is the only project that does have a health check implemented for each service and is only sharing one library between services.
+But this fact by no means indicates that the \lstinline{vehicle-tracking-microservices} project is inadequate to be a good answer concerning \textbf{RQ1}. \newline
+
+None of the ranked repositories can or should be regarded as \textit{bad} just because they have a higher CNV value.
+The CNV value is not influenced by factors such as bad code style, missing unit tests or other \textit{non microservice specific} anti patterns concerning both source code and architectural level.
+Under certain circumstances there are good and justified reasons to implement an anti pattern.
+In a growing and evolving architecture, it is necessary to make tradeoffs and decisions, sometimes even under great time pressure\footnote{Hopefully not in the case of these demo projects, created for educational purposes.}. \newline
+
+The outcome, that all 7 analyzed repositories shared at least one library between a minimum of two services, fits very well with the low perceived harmfulness values of the \textit{Shared Libraries} anti pattern as identified by the two surveys \cite{taibi_definition_2018, taibi_microservices_2020} carried out by \textit{Taibi et al.}.
+One could argue that the same is true in the case of the \textit{Lack of Monitoring} anti pattern.
+However this does not apply in the case of the \textit{API Versioning} and \textit{Hardcoded Endpoints} anti patterns. \newline
+
+The result, that not a single violation\footnote{$sum(TNV_i) = 0$ where $i$ is the \textit{Cyclic Dependency} anti pattern.} of the \textit{Cyclic Dependency} anti pattern was detected is possibly attributable to the fact that only the dependency information from the \lstinline{docker-compose.yml} files was used.
+In a future research project, the \lstinline{CyclicDependencyAnalyzer} could be extended to also detect internal API calls, similar to the tool implemented by \textit{Rahman et al.} \cite{imranur_curated_2019}, or to check all messages published on the utilized message bus to add to the already existing dependency information.
+Unfortunately the paper \cite{imranur_curated_2019} does not report the results of the analysis of the circular references, which makes a future comparison difficult.
+
+\subsection{Threats to Validity}
+As to be found in most research literature, some aspects threaten the validity of the proposed answers to both research questions.
+For example, as already mentioned, the case study was carried out with only a few repositories.
+This was based on the fact that the prototype has some restrictions.
+Additionally, some repositories, fitting within the prototype's restrictions, may have been missed due to an error of investigation by human while manually investigating a total amount of 192 repositories.
+Furthermore, only open source repositories hosted on GitHub were considered. \newline
+
+In addition, although all results produced by the prototype were checked manually this does not automatically guarantee that the prototype works correctly and that all cases are properly handled.
+The proposed answer to \textbf{RQ1} could be different, even with the same repositories, if for example analyzers for different anti patterns would have been implemented.
+This is due the fact that only a selected subset and not an \textit{exhaustive} list of anti patterns can be detected by the implemented prototype.
+Furthermore, as one can see by comparing \textit{Table \ref{tab:CNVperProject}} and \textit{Table \ref{tab:CNVperProjectWithoutMegaservice}} is it possible to get a significant difference in outcome by disabling one analyzer.
+This can be demonstrated by the following two examples, where both projects clearly \textit{improve} by disabling the \lstinline{MegaserviceAnalyzer}.
+The \lstinline{pitstop} project improved from a CNV value of $18.0370$ to $11.8147$, jumping from 4th to 2nd place.
+The \lstinline{eShopOnContainers} project improved from a CNV value of $21.2526$ to $14.2526$.
+As a reference the \lstinline{vehicle-tracking-microservices} project remained on rank 1 with a CNV value of $8.4286$.
+Also, several repositories contain a frontend project which are normally not versioned, as they are usually customer facing services, and may contain a large number of controllers since they utilize the functionality provided by the various backend services. \newline
+
+Furthermore, the CNV value depends on values provided by external surveys.
+Also, as already mentioned, the CNV value is not influenced by factors such as bad code style, missing unit tests or other \textit{non microservice specific} anti patterns concerning both source code and architectural level.
+Therefore the answer to \textbf{RQ1} is only valid in the context of microservice anti patterns and should have no significance with respect to other concerns. \newline
+
+The anti patterns listed as most frequently occurring pitfalls as an answer to \textbf{RQ2} should still hold valid in the case of adding additional analyzers.
+This is due the fact that they are not based on ranking various projects by comparing them as with the answer to \textbf{RQ1}, but on the sum of TNV and RNV values across multiple projects.
+As an example, if a new analyzer is introduced to detect the \textit{No API-Gateway} anti pattern the amount of detected \textit{API Versioning} violations (total and relative) will still remain the same.
+
+\section{Conclusion}
+In this work a prototype for the automatic detection of 7 different microservice specific anti patterns is implemented.
+Based on the restrictions of this prototype a list of open source microservice repositories was compiled by manually investigating a total of 192 repositories on GitHub.
+Subsequently, within the context of a case study, these 7 projects were then analyzed by the prototype.
+The analysis by the prototype is carried out by parsing a repository's \lstinline{docker-compose.yml} file to extract information about the microservices of a project.
+Thereafter, the source code is parsed and transformed to an internal \textit{abstract syntax tree like} data structure.
+To this tree structure, various anti pattern analyzers apply specific rules to detect violations. \newline
+
+The result of the analysis has shown that the \lstinline{vehicle-tracking-microservices}project can be considered as an advantageous guideline for the implementation of a microservice project.
+Across all 7 repositories a total of 99 hardcoded endpoints were found whereas 52 API controllers do not contain a versioning strategy.
+33 libraries are shared across all repositories by at least two services.
+The \textit{API Versioning}, \textit{Hardcoded Endpoints}, \textit{Lack of Monitoring} and \textit{Shared Libraries} anti patterns were identified as frequently occurring pitfalls in microservice projects.
+
+\section{Future Work}
+The next steps of this research could be to extend the prototype to be able to detect an \textit{exhaustive} list of microservice specific anti patterns.
+Furthermore, more \lstinline{ServiceExtractors} could be implemented, to gradually facilitate the prototype's restrictions.
+This would allow to drastically increase the sample size.
+Additionally, other open source hosting services such as BitBucket or GitLab can be considered to extend the dataset.
+But in these cases it must be verified whether data processing is also permitted as it is in GitHub in a research context.
+Future research could then focus on comparisons with other target languages, enabling the creation of programming language specific guidelines to further support developers.
+In addition, a comprehensive catalogue of frequently occurring microservice specific pitfalls based on various programming languages could be elaborated and ranked based on occurrences and/or a followup study on perceived harmfulness.
+
+\pagebreak
+\appendix
+
+\section{HardcodedEndpointsAnalyzer: Excluded Files and Directories}
+\begin{lstlisting}
+{
+  "IgnoredFiles": [
+    "bundleconfig.json",
+    "launchSettings.json",
+    "ocelot.json",
+    "package-lock.json",
+    "web.config"
+  ],
+  "IgnoredDirectories": [
+    "obj\Debug",
+    "wwwroot"
+  ]
+}
+\end{lstlisting}
+
+\section{SharedLibraryAnalyzer: Ignored Library Prefixes}
+\begin{lstlisting}
+[
+  "AspNetCore.",
+  "Autofac.",
+  "AutoMapper",
+  "automapper",
+  "Dapper",
+  "eventflow",
+  "Eventflow.",
+  "EventFlow.",
+  "FluentValidation.",
+  "Google.",
+  "Grpc.",
+  "IdentityServer4.",
+  "MediatR",
+  "Microsoft.",
+  "MongoDB.",
+  "Npgsql.",
+  "Polly",
+  "protobuf-net",
+  "RabbitMQ.",
+  "Serilog",
+  "Scrutor",
+  "System.",
+  "Swashbuckle."
+]
+\end{lstlisting}
+
+\section{Project Dataset with Non-Shortend Repository URLs}
+\begin{table}[h!]
+\resizebox{\textwidth}{!}{%
+    \begin{tabular}{|l|>{\ttfamily}l|}
+    \hline
+Name & \normalfont GitHub Repository  \\ \hline \hline
+crm                                    & https://github.com/tungphuong/crm \\ \hline
+EnterprisePlanner                      & https://github.com/gfawcett22/EnterprisePlanner \\ \hline
+eShopOnContainers                      & https://github.com/dotnet-architecture/eShopOnContainers \\ \hline
+microservices-dotnetcore-docker-sf-k8s & https://github.com/vany0114/microservices-dotnetcore-docker-sf-k8s \\ \hline
+pitstop                                & https://github.com/EdwinVW/pitstop \\ \hline
+VehicleTracker                         & https://github.com/MongkonEiadon/VehicleTracker \\ \hline
+vehicle-tracking-microservices         & https://github.com/mohamed-abdo/vehicle-tracking-microservices \\ \hline
+    \end{tabular}
+}
+\caption{The non-shortend URLs of the project dataset repositories. This URLs are given here in the case that the shorting service is unavailable.}
+\end{table}
+
+\pagebreak
+
+\bibliographystyle{ieeetr}
+\bibliography{mt-rp.bib}
+
+\end{document}
