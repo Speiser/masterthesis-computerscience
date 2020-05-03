@@ -1,0 +1,8 @@
+{
+  "profiles": {
+    "Speiser.Masterthesis.Prototype": {
+      "commandName": "Project",
+      "commandLineArgs": "C:\\Users\\Speiser\\Documents\\GitHub\\masterthesis\\prototype-config.json"
+    }
+  }
+}

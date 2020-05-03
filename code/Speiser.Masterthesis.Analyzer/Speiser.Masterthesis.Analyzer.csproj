@@ -1,0 +1,17 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>netstandard2.1</TargetFramework>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Extensions.DependencyInjection" Version="3.1.1" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Speiser.Masterthesis.ConfigurationService\Speiser.Masterthesis.ConfigurationService.csproj" />
+    <ProjectReference Include="..\Speiser.Masterthesis.ServiceExtractor\Speiser.Masterthesis.ServiceExtractor.csproj" />
+    <ProjectReference Include="..\Speiser.Masterthesis.SourceCodeService\Speiser.Masterthesis.SourceCodeService.csproj" />
+  </ItemGroup>
+
+</Project>
